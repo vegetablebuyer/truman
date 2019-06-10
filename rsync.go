@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/md5"
+	"flag"
 	"fmt"
 	"os"
 )
@@ -16,6 +17,10 @@ type blockChecksum struct {
 	index uint64
 	weakChecksum uint32
 	md5Checksum []byte
+}
+
+func init(){
+	flag.Parse()
 }
 
 // 计算一个数据块的弱滚动校验和
@@ -50,30 +55,36 @@ func calculateBlockNumbers(pathname string) uint64 {
 }
 
 //计算一个文件的弱滚动校验和以及MD5校验和
-func calculateFileChecksum(pathname string) []blockChecksum{
+func calculateFileChecksum(pathname string) *[]blockChecksum{
 	file, err := os.Open(pathname)
 	if err != nil {
 		panic(err)
 	}
 	checksumListLen := calculateBlockNumbers(pathname)
-	var fileChecksumList = [checksumListLen]blockChecksum {}
+	var fileChecksumList = make([]blockChecksum, checksumListLen)
 	fileReader := bufio.NewReader(file)
 	buf := make([]byte, BlockSize)
 	var i uint64 = 0
 	for {
 		n, _ := fileReader.Read(buf)
 		if n == 0 {
-			return nil
+			break
 		}
-		fmt.Println(n)
 		weakSum := weakRollingChecksum(buf)
 		md5Sum := strongChecksum(buf)
 		fileChecksumList[i] = blockChecksum{i, weakSum, md5Sum,}
+		i ++
 	}
-	return fileChecksumList
+	return &fileChecksumList
 }
 
+var filename = flag.String("file", "", "the filename to detect")
+
 func main()  {
-	filename := "/app/go_app/truman/truman"
-	calculateFileChecksum(filename)
+	if *filename == "" {
+		fmt.Println("file name is necessarily")
+		os.Exit(1)
+	}
+	checksumList := calculateFileChecksum(*filename)
+	fmt.Println(checksumList)
 }
