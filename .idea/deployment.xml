@@ -5,7 +5,7 @@
       <paths name="server">
         <serverdata>
           <mappings>
-            <mapping deploy="/app/truman" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/app/go_app/truman" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

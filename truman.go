@@ -1,43 +1,28 @@
 package main
 
 import (
-	"github.com/fsnotify/fsnotify"
-	"log"
+	"flag"
+	"fmt"
+	"os"
 )
 
+func init(){
+	flag.Parse()
+}
+
+var srcFile = flag.String("srcFile", "", "the source file")
+var dstFile = flag.String("dstFile", "", "the destination file")
+
 func main()  {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
+	if *srcFile == "" {
+		fmt.Println("do not specify a source file")
+		os.Exit(1)
 	}
-	defer watcher.Close()
-
-	done := make(chan bool)
-	go func() {
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				log.Println("event:", event)
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					log.Println("modified file:", event.Name)
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				log.Println("error:", err)
-			}
-		}
-	}()
-
-	err = watcher.Add("/tmp/foo")
-	if err != nil {
-		log.Fatal(err)
+	if *dstFile == "" {
+		fmt.Println("do not specify a destination file")
+		os.Exit(1)
 	}
-	log.Printf("before done")
-	<-done
-	log.Printf("after done")
+	checksumList := calculateFileChecksum(*dstFile)
+	hashTable := buildHashTable(checksumList)
+	calculateDiffer(*srcFile, *hashTable)
 }
