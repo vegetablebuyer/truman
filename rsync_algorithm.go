@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	BlockSize 	 = 12
-	M         	 = 1 << 16
+	BlockSize    = 12
+	M            = 1 << 16
 	HashTableLen = 1 << 16
 )
 
@@ -18,22 +18,22 @@ type entryPoint struct {
 	next *entryPoint
 }
 
+// The checksum of a data block
 type blockChecksum struct {
 	index uint64
 	weakChecksum uint32
 	md5Checksum []byte
 }
 
-// 哈希函数
+// The hash function
 func hashFunc(weakChecksum uint32)uint16{
 	return uint16(weakChecksum % HashTableLen)
 }
 
-// 以文件块的滚动校验和为哈希key计算哈希表
+// Calculate the hash table of the checksum list
 func buildHashTable(checksumList *[]blockChecksum)*[]*entryPoint{
 	hashTable := make([]*entryPoint, HashTableLen)
 	for _, block := range *checksumList{
-		// 哈希函数为简单的取摸运算
 		hashValue := hashFunc(block.weakChecksum)
 		entry := hashTable[hashValue]
 		if entry == nil{
@@ -58,7 +58,7 @@ func buildHashTable(checksumList *[]blockChecksum)*[]*entryPoint{
 	return &hashTable
 }
 
-// 计算一个数据块的弱滚动校验和
+// Calculate the weak rolling checksum
 func weakRollingChecksum(block []byte) (uint32, uint32, uint32){
 	var a, b uint32 = 0, 1
 	for i := range block{
@@ -68,13 +68,15 @@ func weakRollingChecksum(block []byte) (uint32, uint32, uint32){
 	return (a % M) + (1 << 16 * (b % M)), a % M, b % M
 }
 
-//计算一个数据块的MD5校验和
+// Calculate the md5sum of a data block
 func strongChecksum(block []byte) []byte{
 	h := md5.New()
 	h.Write(block)
 	return h.Sum(nil)
 }
 
+// Return the block numbers of a file
+// The result will be different due to the constant BlockSize
 func calculateBlockNumbers(fileBytes []byte) uint64 {
 	size := len(fileBytes)
 	number := size / BlockSize
@@ -84,7 +86,7 @@ func calculateBlockNumbers(fileBytes []byte) uint64 {
 	return uint64(number)
 }
 
-//比较两个int数字的大小
+// Compare two int numbers and return the smaller
 func min(a int, b int) int {
 	if a < b {
 		return a
@@ -92,7 +94,9 @@ func min(a int, b int) int {
 	return b
 }
 
-//计算一个文件的弱滚动校验和以及MD5校验和
+// Divide the file pathname into blocks
+// Calculate the weak rolling checksum and md5sum of every block
+// Store the results into slice fileChecksumList
 func calculateFileChecksum(pathname string) *[]blockChecksum{
 	fileBytes, err := ioutil.ReadFile(pathname)
 	if err != nil {
@@ -111,7 +115,8 @@ func calculateFileChecksum(pathname string) *[]blockChecksum{
 	return &fileChecksumList
 }
 
-//计算源文件与目标文件不同的需要传输的文件块
+// Tell the differences between the source file and the destination file
+// The result will be different due to the constant BlockSize
 func calculateDiffer(srcFile string, HashTable []*entryPoint)  {
 	fileBytes, err := ioutil.ReadFile(srcFile)
 	fmt.Println(len(fileBytes))
