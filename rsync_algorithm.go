@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	BlockSize 	 = 1024
+	BlockSize 	 = 12
 	M         	 = 1 << 16
 	HashTableLen = 1 << 16
 )
@@ -35,7 +35,6 @@ func buildHashTable(checksumList *[]blockChecksum)*[]*entryPoint{
 	for _, block := range *checksumList{
 		// 哈希函数为简单的取摸运算
 		hashValue := hashFunc(block.weakChecksum)
-		fmt.Println(hashValue)
 		entry := hashTable[hashValue]
 		if entry == nil{
 			hashTable[hashValue] = &entryPoint{
@@ -62,9 +61,9 @@ func buildHashTable(checksumList *[]blockChecksum)*[]*entryPoint{
 // 计算一个数据块的弱滚动校验和
 func weakRollingChecksum(block []byte) (uint32, uint32, uint32){
 	var a, b uint32 = 0, 1
-	for  i := range block{
+	for i := range block{
 		a += uint32(block[i])
-		b += (uint32(len(block)) + 1) * uint32(block[i])
+		b += (uint32(len(block)-1) - uint32(i) + 1) * uint32(block[i])
 	}
 	return (a % M) + (1 << 16 * (b % M)), a % M, b % M
 }
@@ -108,9 +107,6 @@ func calculateFileChecksum(pathname string) *[]blockChecksum{
 		weakSum, _, _ := weakRollingChecksum(buf)
 		md5Sum := strongChecksum(buf)
 		fileChecksumList[i] = blockChecksum{uint64(i), weakSum, md5Sum,}
-		fmt.Println(string(buf))
-		fmt.Println(weakSum)
-		fmt.Println("--------")
 	}
 	return &fileChecksumList
 }
@@ -123,45 +119,45 @@ func calculateDiffer(srcFile string, HashTable []*entryPoint)  {
 		panic(err)
 	}
 	var startByte, previousMatch int
-	//var weakSum, a, b uint32
-	var weakSum uint32
+	var weakSum, a, b uint32
 	var isRolling bool
+	Loop:
 	for startByte < len(fileBytes){
 		endByte := min(startByte + BlockSize, len(fileBytes))
 		buf := fileBytes[startByte:endByte]
 		if isRolling {
-			//a = (a - uint32(fileBytes[startByte]) + uint32(fileBytes[endByte-1])) % M
-			//b = (b - uint32(endByte-startByte+1)*uint32(fileBytes[startByte]) + a) % M
-			//weakSum = a + M*b
-			weakSum, _, _ = weakRollingChecksum(buf)
+			a = (a - uint32(fileBytes[startByte-1]) + uint32(fileBytes[endByte-1])) % M
+			b = (b - uint32(endByte-startByte)*uint32(fileBytes[startByte-1]) + a) % M
+			weakSum = a + M*b
 		}else {
-			weakSum, _, _ = weakRollingChecksum(buf)
+			weakSum, a, b = weakRollingChecksum(buf)
 		}
-		fmt.Println(string(buf))
 		hashValue := hashFunc(weakSum)
 		if HashTable[hashValue] != nil {
 			md5Sum := strongChecksum(buf)
 			entry := HashTable[hashValue]
-			if entry.weakChecksum == weakSum && string(entry.md5Checksum) == string(md5Sum) {
-				if isRolling {
-					fmt.Println(string(fileBytes[previousMatch:startByte]))
-					isRolling = false
+			for entry != nil{
+				if entry.weakChecksum == weakSum && string(entry.md5Checksum) == string(md5Sum) {
+					if isRolling {
+						fmt.Println("differ")
+						fmt.Println(string(fileBytes[previousMatch:startByte]))
+						isRolling = false
+					}
+					startByte += BlockSize
+					previousMatch = endByte
+					goto Loop
 				}
-				startByte += BlockSize
-				previousMatch = endByte
-				continue
-			}else {
-				isRolling = true
-				startByte ++
-				continue
+				entry = entry.next
 			}
+			isRolling = true
+			startByte ++
 		}else{
 			isRolling = true
 			startByte ++
-			continue
 		}
 	}
 	if isRolling {
+		fmt.Println("differ")
 		fmt.Println(string(fileBytes[previousMatch:startByte]))
 		isRolling = false
 	}
